@@ -1,0 +1,206 @@
+import numpy as np
+import pandas as pd
+import matplotlib.pyplot as plt
+
+# EXPLORATORY AND GETTING FAMILIAR WITH DATA STAGE
+df = r'C:\Users\user\Desktop\Meteorite Landings Project\healthcare_proj\healthcare_dataset.csv'
+df = pd.read_csv(df)
+
+# Look at first few rows, find any data type problems, number of rows/columns and make a list of variable names
+print(df.head)
+print(df.dtypes)
+print(df.shape)
+print(df.columns.values.tolist())
+
+# Check for missing values
+print(df.isnull().values.any())     # no missing values !
+
+# Check values of variables in Gender, Blood Type, Medical Condition, Admission Type, Medication and Test Results for consistency, spelling errors etc.
+print(df['Gender'].unique())                    # Male + Female
+print(df['Blood Type'].unique())                # All blood types are here - no issues
+print(df['Medical Condition'].unique())         # No spelling errors or issues
+print(df['Doctor'].unique())                    # Lots of doctors - might need to have a closer look but should be fine
+print(df['Hospital'].unique())                  # Same here - lots of hospitals but should be fine
+print(df['Insurance Provider'].unique())        # 5 different insurance providers, no issues
+print(df['Admission Type'].unique())            # 3 different admission types - no issues
+print(df['Medication'].unique())                # 5 different medications - no issues   
+print(df['Test Results'].unique())              # 3 different test result types - no issues
+
+print(df['Hospital'].nunique())                 # 39876 unique hospital names
+print(df['Doctor'].nunique())                   # 40341 unique hospital names
+
+
+
+
+
+# CLEANING STAGE
+# From looking at the data few things to correct: 
+    # Weird formatting in the 'Name' column - capital letters randomly in the middle of names etc.
+    # Data type for 'Date of Admission' & 'Discharge Date' is an object as opposed to a date type, variable names not consistent so will change
+    # 'Billing Amount' has 6 decimal places which is incorrect for a value representing a cost, will add (£) to variable name to add context
+
+# Fix 'Name' format
+df['Name'] = df['Name'].str.title()          
+
+
+# Fix data type for date variables with object dtype
+df['Date of Admission'] = pd.to_datetime(df['Date of Admission'], format='%Y-%m-%d')
+df['Discharge Date'] = pd.to_datetime(df['Discharge Date'], format='%Y-%m-%d')
+
+print(df[['Date of Admission', 'Discharge Date']])
+print(df.dtypes)
+
+# Change variable names to be more conistent
+df.rename(columns={'Date of Admission': 'Admission Date'}, inplace=True)
+print(df.head)
+
+
+# Remove excess decimal places from the 'Billing Amount' column, including rounding where applicable
+df['Billing Amount'] = df['Billing Amount'].round(2)
+print(df['Billing Amount'])
+
+# Add (£) to variable name to give value more context
+df.rename(columns={'Billing Amount': 'Billing Amount (£)'}, inplace=True)
+print(df.head)
+
+
+
+
+
+# ANALYSIS STAGE
+# Perform some statistical analysis on whole dataset
+# Produce some exploratory plots to find any interesting insight
+# Find time between admission and discharge date
+
+# min, max, mean & std deviation of relevant variables
+print(df['Age'].agg(['min','max', 'mean', 'std']))
+print(df['Billing Amount (£)'].agg(['min','max', 'mean', 'std']))       # From this see that there is negative billing amounts - does this make sense?
+
+
+# Look to see if other negative billing amounts
+neg_billing = df[df['Billing Amount (£)'] < 0]
+# print(neg_billing)                                            # 108 rows with negative billing amounts (out of 55000 rows) --> small enough to discount? (0.2% of all rows)
+
+zero_billing = df[df['Billing Amount (£)'] == 0]              # No rows with zero billing amount.
+# print(zero_billing)
+
+# Drop these rows
+df = df[df['Billing Amount (£)'] >= 0]
+
+# Time between admission and discharge
+df['Time Taken to be Discharged'] = df['Discharge Date'] - df['Admission Date'] 
+print(df['Time Taken to be Discharged'].agg(['min','max', 'mean', 'std']))
+
+
+# REWROTE THIS SECTION USING FOR LOOP AT LINE 141
+
+# Do any of the Insurance companies have higher costs?
+# blue_cross = df[df['Insurance Provider'] == 'Blue Cross']
+# medicare = df[df['Insurance Provider'] == 'Medicare']
+# aetna = df[df['Insurance Provider'] == 'Aetna']
+# united = df[df['Insurance Provider'] == 'UnitedHealthcare']
+# cigna = df[df['Insurance Provider'] == 'Cigna']
+
+# # Total average billing amount is £25539
+# print(blue_cross['Billing Amount (£)'].agg(['min','max', 'mean', 'std']))       # avg £25650 - BLUE CROSS
+# print(medicare['Billing Amount (£)'].agg(['min','max', 'mean', 'std']))         # avg £25667 - MEDICARE
+# print(aetna['Billing Amount (£)'].agg(['min','max', 'mean', 'std']))            # avg £25618 - AETNA
+# print(united['Billing Amount (£)'].agg(['min','max', 'mean', 'std']))           # avg £25433 - UNITEDHEALTHCARE
+# print(cigna['Billing Amount (£)'].agg(['min','max', 'mean', 'std']))            # avg £25581 - CIGNA
+
+# UnitedHealthcare has the lowest average billing amount, Medicare has the highest average billing amount
+# Does Medical condition have an effect on the billing amount?
+
+# Use for loops this time
+print('AVERAGE BILLING AMOUNT BY MEDICAL CONDITION')
+condition_dfs = {}
+
+for condition in df['Medical Condition'].unique():
+    condition_df = df[df['Medical Condition'] == condition]
+    condition_dfs[condition] = condition_df
+
+avg_billings = {}
+
+for condition, condition_df in condition_dfs.items():
+    avg_billing = condition_df['Billing Amount (£)'].mean()
+    avg_billings[condition] = avg_billing
+
+for condition, avg_amount in avg_billings.items():
+    print(f"Avg Billing Amount for '{condition}': £{avg_amount:.2f}")
+
+# Avg Billing Amount for 'Cancer': £25214.91
+# Avg Billing Amount for 'Obesity': £25860.32
+# Avg Billing Amount for 'Diabetes': £25694.50
+# Avg Billing Amount for 'Asthma': £25686.67
+# Avg Billing Amount for 'Hypertension': £25556.09
+# Avg Billing Amount for 'Arthritis': £25528.12
+
+#   Diabetes had highest avg billing amount, Cancer had the lowest.
+
+# Re-write the insurance company code to use for loops 
+print('AVERAGE BILLING AMOUNT BY INSURANCE PROVIDER')
+provider_dfs = {}
+for provider in df['Insurance Provider'].unique():
+    provider_df = df[df['Insurance Provider'] == provider]
+    provider_dfs[provider] = provider_df
+
+avg_prov_billings = {}
+for provider, provider_df in provider_dfs.items():
+    avg_prov_billing = provider_df['Billing Amount (£)'].mean()
+    avg_prov_billings[provider] = avg_prov_billing
+
+for provider, avg_prov_amount in avg_prov_billings.items():
+    print(f"Avg Billing Amount for '{provider}': £{avg_prov_amount:.2f}")
+
+# Avg Billing Amount for 'Blue Cross': £25650.84
+# Avg Billing Amount for 'Medicare': £25667.55
+# Avg Billing Amount for 'Aetna': £25618.33
+# Avg Billing Amount for 'UnitedHealthcare': £25433.07
+# Avg Billing Amount for 'Cigna': £25581.44
+
+#   Medicare has the highest average billing amount, UnitedHealthcare has the lowest.
+
+
+# Do same for medication
+print('AVERAGE BILLING AMOUNT BY MEDICATION')
+medication_dfs = {}
+for medication in df['Medication'].unique():
+    medication_df = df[df['Medication'] == medication]
+    medication_dfs[medication] = medication_df
+
+avg_med_billings = {}
+
+for medication, medication_df in medication_dfs.items():
+    avg_med_billing = medication_df['Billing Amount (£)'].mean()
+    avg_med_billings[medication] = avg_med_billing
+
+for medication, avg_med_amount in avg_med_billings.items():
+    print(f"Avg Billing Amount for '{medication}': £{avg_med_amount:.2f}")
+
+# Avg Billing Amount for 'Paracetamol': £25583.18
+# Avg Billing Amount for 'Ibuprofen': £25785.33
+# Avg Billing Amount for 'Aspirin': £25643.35
+# Avg Billing Amount for 'Penicillin': £25547.28
+# Avg Billing Amount for 'Lipitor': £25391.40
+
+#   Ibuprofen has the highest avg billing amount, Lipitor has the lowest.
+
+#   Can see not much variance in billing amount depending on insurance provider, medication and medical condition --> data artificially produced so is quite evenly distributed
+#   Look at billing amount and time taken to be discharged
+
+print(df['Time Taken to be Discharged'].unique())
+
+discharged_dfs = {}
+for discharged in df['Time Taken to be Discharged'].unique():
+    discharged_df = df[df['Time Taken to be Discharged'] == discharged]
+    discharged_dfs[discharged] = discharged_df
+
+avg_dis_billings = {}
+
+for discharged, discharged_df in discharged_dfs.items():
+    avg_dis_billing = discharged_df['Billing Amount (£)'].mean()
+    avg_dis_billings[discharged] = avg_dis_billing
+
+for discharged, avg_dis_amount in avg_dis_billings.items():
+    print(f"Avg Billing Amount for '{discharged}': £{avg_dis_amount:.2f}")
+
